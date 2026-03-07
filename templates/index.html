@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>美的集团股票监控</title>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+        <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .stock-info {
+            text-align: center;
+            margin: 20px 0;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+        }
+        .price {
+            font-size: 36px;
+            font-weight: bold;
+            color: #333;
+        }
+        .analysis {
+            margin-top: 30px;
+        }
+        .analysis h2 {
+            color: #333;
+        }
+        .analysis-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .analysis-item:last-child {
+            border-bottom: none;
+        }
+        .label {
+            font-weight: bold;
+            color: #555;
+        }
+        .value {
+            color: #333;
+        }
+        .positive {
+            color: #4CAF50;
+        }
+        .negative {
+            color: #f44336;
+        }
+        .date-selector {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .date-selector label {
+            font-weight: bold;
+        }
+        .date-selector input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .date-selector button {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .date-selector button:hover {
+            background-color: #45a049;
+        }
+        .table-container {
+            margin-top: 30px;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .highlight-above {
+            background-color: #e8f5e8 !important;
+        }
+        .highlight-below {
+            background-color: #ffe8e8 !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>美的集团（000333）股票监控</h1>
+        
+        <div class="stock-info">
+            <h2>实时行情</h2>
+            <div class="price" id="price">加载中...</div>
+            <div id="timestamp">--</div>
+        </div>
+        
+        <div class="date-selector">
+            <label for="start-date">开始日期：</label>
+            <input type="date" id="start-date">
+            <label for="end-date">结束日期：</label>
+            <input type="date" id="end-date">
+            <button onclick="updateAnalysisByDate()">查询</button>
+        </div>
+        
+        <div class="analysis">
+            <h2>BOLL指标分析</h2>
+            <div class="analysis-item">
+                <span class="label">总天数：</span>
+                <span class="value" id="total-days">加载中...</span>
+            </div>
+            <div class="analysis-item">
+                <span class="label">突破上轨次数：</span>
+                <span class="value positive" id="above-upper">加载中...</span>
+            </div>
+            <div class="analysis-item">
+                <span class="label">突破上轨比例：</span>
+                <span class="value positive" id="above-upper-ratio">加载中...</span>
+            </div>
+            <div class="analysis-item">
+                <span class="label">突破下轨次数：</span>
+                <span class="value negative" id="below-lower">加载中...</span>
+            </div>
+            <div class="analysis-item">
+                <span class="label">突破下轨比例：</span>
+                <span class="value negative" id="below-lower-ratio">加载中...</span>
+            </div>
+        </div>
+        
+        <div class="table-container">
+            <h2>突破明细</h2>
+            <table id="daily-data">
+                <thead>
+                    <tr>
+                        <th>日期</th>
+                        <th>开盘价</th>
+                        <th>最高价</th>
+                        <th>最低价</th>
+                        <th>收盘价</th>
+                        <th>成交量</th>
+                        <th>MA</th>
+                        <th>上轨</th>
+                        <th>下轨</th>
+                        <th>突破情况</th>
+                        <th>突破百分比</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="10" style="text-align: center;">加载中...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="analysis" style="margin-top: 40px;">
+            <h2>模拟交易净值收益曲线</h2>
+            <div style="display: flex; justify-content: center; margin-bottom: 10px;">
+                <button onclick="zoomOut()" style="margin: 0 5px; padding: 5px 10px;">-</button>
+                <button onclick="zoomIn()" style="margin: 0 5px; padding: 5px 10px;">+</button>
+                <button onclick="panLeft()" style="margin: 0 5px; padding: 5px 10px;">←</button>
+                <button onclick="panRight()" style="margin: 0 5px; padding: 5px 10px;">→</button>
+                <button onclick="resetZoom()" style="margin: 0 5px; padding: 5px 10px;">重置</button>
+            </div>
+            <div style="height: 400px;">
+                <canvas id="netValueChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 获取股票价格
+        function updateStockData() {
+            fetch('/api/stock')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.price) {
+                        document.getElementById('price').textContent = data.price.toFixed(2);
+                        const date = new Date(data.timestamp);
+                        document.getElementById('timestamp').textContent = date.toLocaleString();
+                    }
+                })
+                .catch(error => console.error('获取股票数据失败:', error));
+        }
+        
+        // 更新分析数据
+        function updateAnalysis() {
+            fetch('/api/analysis')
+                .then(response => response.json())
+                .then(data => {
+                    updateAnalysisUI(data);
+                })
+                .catch(error => console.error('获取分析数据失败:', error));
+        }
+        
+        // 根据日期范围更新分析数据
+        function updateAnalysisByDate() {
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+            
+            if (startDate && endDate) {
+                fetch(`/api/analysis?start_date=${startDate}&end_date=${endDate}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        updateAnalysisUI(data);
+                    })
+                    .catch(error => console.error('获取分析数据失败:', error));
+            } else {
+                alert('请选择开始日期和结束日期');
+            }
+        }
+        
+        // 更新分析UI
+        function updateAnalysisUI(data) {
+            console.log('接收到的分析数据:', data);
+            
+            if (data.total_days !== undefined) {
+                document.getElementById('total-days').textContent = data.total_days;
+            }
+            if (data.above_upper !== undefined) {
+                document.getElementById('above-upper').textContent = data.above_upper;
+            }
+            if (data.above_upper_ratio !== undefined) {
+                document.getElementById('above-upper-ratio').textContent = data.above_upper_ratio.toFixed(2) + '%';
+            }
+            if (data.below_lower !== undefined) {
+                document.getElementById('below-lower').textContent = data.below_lower;
+            }
+            if (data.below_lower_ratio !== undefined) {
+                document.getElementById('below-lower-ratio').textContent = data.below_lower_ratio.toFixed(2) + '%';
+            }
+            
+            // 更新突破明细表格
+            updateDailyDataTable(data.breakout_data);
+            
+            // 更新模拟交易净值收益曲线
+            if (data.simulation_result) {
+                console.log('模拟交易数据:', data.simulation_result);
+                updateNetValueChart(data.simulation_result);
+            } else {
+                console.error('没有模拟交易数据');
+            }
+        }
+        
+        // 更新净值收益曲线
+        function updateNetValueChart(simulationResult) {
+            try {
+                const ctx = document.getElementById('netValueChart').getContext('2d');
+                
+                // 准备数据
+                const dates = simulationResult.buy_and_hold.map(item => item.date);
+                const buyAndHoldValues = simulationResult.buy_and_hold.map(item => item.net_value);
+                const bollStrategyValues = simulationResult.boll_strategy.map(item => item.net_value);
+                const stockPrices = simulationResult.stock_prices ? simulationResult.stock_prices.map(item => item.price) : [];
+                
+                // 准备买入和卖出信号数据
+                const buySignals = [];
+                const sellSignals = [];
+                
+                if (simulationResult.buy_signals) {
+                    simulationResult.buy_signals.forEach(signal => {
+                        const index = dates.indexOf(signal.date);
+                        if (index !== -1) {
+                            buySignals.push({
+                                x: index,
+                                y: signal.price
+                            });
+                        }
+                    });
+                }
+                
+                if (simulationResult.sell_signals) {
+                    simulationResult.sell_signals.forEach(signal => {
+                        const index = dates.indexOf(signal.date);
+                        if (index !== -1) {
+                            sellSignals.push({
+                                x: index,
+                                y: signal.price
+                            });
+                        }
+                    });
+                }
+                
+                // 销毁旧图表（如果存在且有destroy方法）
+                if (window.netValueChart && typeof window.netValueChart.destroy === 'function') {
+                    window.netValueChart.destroy();
+                }
+                
+                // 创建新图表
+                window.netValueChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: dates,
+                        datasets: [
+                            {
+                                label: '买入持有策略',
+                                data: buyAndHoldValues,
+                                borderColor: 'rgba(75, 192, 192, 1)',
+                                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                                borderWidth: 2,
+                                tension: 0.1
+                            },
+                            {
+                                label: 'BOLL突破策略',
+                                data: bollStrategyValues,
+                                borderColor: 'rgba(255, 99, 132, 1)',
+                                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                                borderWidth: 2,
+                                tension: 0.1
+                            },
+                            {
+                                label: '股价',
+                                data: stockPrices,
+                                borderColor: 'rgba(54, 162, 235, 1)',
+                                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                                borderWidth: 2,
+                                tension: 0.1,
+                                yAxisID: 'y1'
+                            },
+                            {
+                                label: '买入信号',
+                                data: buySignals,
+                                type: 'scatter',
+                                backgroundColor: 'rgba(75, 192, 192, 1)',
+                                borderColor: 'rgba(75, 192, 192, 1)',
+                                borderWidth: 2,
+                                pointRadius: 6,
+                                pointHoverRadius: 8,
+                                yAxisID: 'y1'
+                            },
+                            {
+                                label: '卖出信号',
+                                data: sellSignals,
+                                type: 'scatter',
+                                backgroundColor: 'rgba(255, 99, 132, 1)',
+                                borderColor: 'rgba(255, 99, 132, 1)',
+                                borderWidth: 2,
+                                pointRadius: 6,
+                                pointHoverRadius: 8,
+                                yAxisID: 'y1'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: '净值收益对比'
+                            },
+                            legend: {
+                                position: 'top'
+                            },
+                            zoom: {
+                                pan: {
+                                    enabled: true,
+                                    mode: 'x',
+                                    speed: 10,
+                                    threshold: 10,
+                                    wheel: {
+                                        enabled: true
+                                    }
+                                },
+                                zoom: {
+                                    wheel: {
+                                        enabled: true
+                                    },
+                                    pinch: {
+                                        enabled: true
+                                    },
+                                    mode: 'x',
+                                    threshold: 10
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                title: {
+                                    display: true,
+                                    text: '净值'
+                                }
+                            },
+                            y1: {
+                                beginAtZero: false,
+                                position: 'right',
+                                title: {
+                                    display: true,
+                                    text: '股价'
+                                },
+                                grid: {
+                                    drawOnChartArea: false
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: '日期'
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('绘制净值收益曲线失败:', error);
+            }
+        }
+        
+        // 更新突破明细表格
+        function updateDailyDataTable(breakoutData) {
+            const tbody = document.getElementById('daily-data').querySelector('tbody');
+            
+            if (breakoutData && breakoutData.length > 0) {
+                tbody.innerHTML = '';
+                
+                breakoutData.forEach(day => {
+                    const row = document.createElement('tr');
+                    
+                    // 添加高亮类
+                    if (day.above_upper) {
+                        row.classList.add('highlight-above');
+                    }
+                    if (day.below_lower) {
+                        row.classList.add('highlight-below');
+                    }
+                    
+                    row.innerHTML = `
+                        <td>${day.date}</td>
+                        <td>${day.open}</td>
+                        <td>${day.high}</td>
+                        <td>${day.low}</td>
+                        <td>${day.close}</td>
+                        <td>${day.volume}</td>
+                        <td>${day.MA || '-'}</td>
+                        <td>${day.upper || '-'}</td>
+                        <td>${day.lower || '-'}</td>
+                        <td>${day.above_upper ? '突破上轨' : day.below_lower ? '突破下轨' : '正常'}</td>
+                        <td>${day.breakout_percentage.toFixed(2)}%</td>
+                    `;
+                    
+                    tbody.appendChild(row);
+                });
+            } else {
+                tbody.innerHTML = '<tr><td colspan="11" style="text-align: center;">无数据</td></tr>';
+            }
+        }
+        
+        // 设置默认日期
+        function setDefaultDates() {
+            const today = new Date();
+            const oneYearAgo = new Date();
+            oneYearAgo.setFullYear(today.getFullYear() - 1);
+            
+            // 格式化日期为YYYY-MM-DD
+            const formatDate = (date) => {
+                return date.toISOString().split('T')[0];
+            };
+            
+            document.getElementById('start-date').value = formatDate(oneYearAgo);
+            document.getElementById('end-date').value = formatDate(today);
+        }
+        
+        // 缩放和平移函数
+        function zoomIn() {
+            if (window.netValueChart) {
+                window.netValueChart.zoom('x', {
+                    factor: 1.5
+                });
+            }
+        }
+        
+        function zoomOut() {
+            if (window.netValueChart) {
+                window.netValueChart.zoom('x', {
+                    factor: 0.7
+                });
+            }
+        }
+        
+        function panLeft() {
+            if (window.netValueChart) {
+                window.netValueChart.pan('x', {
+                    amount: -0.2
+                });
+            }
+        }
+        
+        function panRight() {
+            if (window.netValueChart) {
+                window.netValueChart.pan('x', {
+                    amount: 0.2
+                });
+            }
+        }
+        
+        function resetZoom() {
+            if (window.netValueChart) {
+                window.netValueChart.resetZoom();
+            }
+        }
+        
+        // 初始化时加载数据
+        setDefaultDates();
+        updateStockData();
+        updateAnalysis();
+        
+        // 移除定时更新股票数据，改为手动触发
+        // 定时更新分析数据（分析数据变化较少，可适当延长间隔）
+        setInterval(updateAnalysis, 60000);
+    </script>
+</body>
+</html>
