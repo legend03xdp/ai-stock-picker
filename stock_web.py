@@ -43,22 +43,22 @@ def get_stock_data(code: str) -> dict:
             d = data["data"]
             info = WATCHLIST.get(code, {"name": code, "sector": "未知"})
             
-            # 价格
-            price = d.get("f43", 0) / 1000 if d.get("f43") else 0
+            # 价格 (东方财富API返回的是以分为单位，需要除以100转为元)
+            price = d.get("f43", 0) / 100 if d.get("f43") else 0
             change = d.get("f44", 0) / 100 if d.get("f44") else 0
             change_pct = d.get("f45", 0) / 100 if d.get("f45") else 0
             
             # 估值
-            pe = d.get("f162", 0)  # 市盈率
-            pb = d.get("f167", 0)  # 市净率
+            pe = d.get("f162", 0) / 100 if d.get("f162") else 0  # 市盈率
+            pb = d.get("f167", 0) / 100 if d.get("f167") else 0  # 市净率
             
-            # 盈利
-            roe = d.get("f173", 0) if d.get("f173") else 0
-            net_margin = d.get("f170", 0) if d.get("f170") else 0
+            # 盈利 (这些字段API返回的是百分比数值，如15.8表示15.8%)
+            roe = d.get("f173", 0) / 100 if d.get("f173") else 0
+            net_margin = d.get("f170", 0) / 100 if d.get("f170") else 0
             
-            # 成长
-            revenue_growth = d.get("f184", 0) if d.get("f184") else 0
-            profit_growth = d.get("f190", 0) if d.get("f190") else 0
+            # 成长 (百分比)
+            revenue_growth = d.get("f184", 0) / 100 if d.get("f184") else 0
+            profit_growth = d.get("f190", 0) / 100 if d.get("f190") else 0
             
             # 计算评分
             score = calculate_score(roe, net_margin, pe, pb, profit_growth)
@@ -652,22 +652,22 @@ def api_search():
             if data.get("data"):
                 d = data["data"]
                 
-                # 价格
-                price = d.get("f43", 0) / 1000 if d.get("f43") else 0
+                # 价格 (东方财富API返回的是以分为单位，需要除以100转为元)
+                price = d.get("f43", 0) / 100 if d.get("f43") else 0
                 change = d.get("f44", 0) / 100 if d.get("f44") else 0
                 change_pct = d.get("f45", 0) / 100 if d.get("f45") else 0
                 
                 # 估值
-                pe = d.get("f162", 0)
-                pb = d.get("f167", 0)
+                pe = d.get("f162", 0) / 100 if d.get("f162") else 0
+                pb = d.get("f167", 0) / 100 if d.get("f167") else 0
                 
-                # 盈利
-                roe = d.get("f173", 0) if d.get("f173") else 0
-                net_margin = d.get("f170", 0) if d.get("f170") else 0
+                # 盈利 (百分比)
+                roe = d.get("f173", 0) / 100 if d.get("f173") else 0
+                net_margin = d.get("f170", 0) / 100 if d.get("f170") else 0
                 
-                # 成长
-                revenue_growth = d.get("f184", 0) if d.get("f184") else 0
-                profit_growth = d.get("f190", 0) if d.get("f190") else 0
+                # 成长 (百分比)
+                revenue_growth = d.get("f184", 0) / 100 if d.get("f184") else 0
+                profit_growth = d.get("f190", 0) / 100 if d.get("f190") else 0
                 
                 # 计算评分
                 score = calculate_score(roe, net_margin, pe, pb, profit_growth)
