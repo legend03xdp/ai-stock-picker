@@ -157,7 +157,30 @@ HTML_TEMPLATE = '''
             justify-content: center;
             gap: 15px;
             margin-bottom: 30px;
+            flex-wrap: wrap;
         }
+        .search-box {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .search-input {
+            padding: 12px 20px;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            font-size: 1rem;
+            width: 250px;
+            outline: none;
+            transition: all 0.3s;
+        }
+        .search-input:focus {
+            border-color: #4ade80;
+            background: rgba(255,255,255,0.15);
+        }
+        .search-input::placeholder { color: #666; }
+        
         .btn {
             padding: 12px 30px;
             border: none;
@@ -172,6 +195,25 @@ HTML_TEMPLATE = '''
             font-weight: bold;
         }
         .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(74,222,128,0.4); }
+        
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .btn-secondary:hover { background: rgba(255,255,255,0.2); }
+        
+        .watchlist-section {
+            margin-bottom: 30px;
+        }
+        .section-title {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            color: #888;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
         
         .stock-grid {
             display: grid;
@@ -276,11 +318,19 @@ HTML_TEMPLATE = '''
         </header>
         
         <div class="controls">
+            <div class="search-box">
+                <input type="text" class="search-input" id="searchInput" placeholder="输入股票代码或名称 (如: 600519)" onkeypress="handleSearch(event)">
+                <button class="btn btn-primary" onclick="searchStock()">🔍 查询</button>
+            </div>
+            <button class="btn btn-secondary" onclick="showWatchlist()">📋 关注列表</button>
             <button class="btn btn-primary" onclick="loadStocks()">🔄 刷新数据</button>
         </div>
         
-        <div id="stockGrid" class="stock-grid">
-            <div class="loading">正在加载数据</div>
+        <div id="searchResult" class="stock-grid"></div>
+        
+        <div id="watchlistSection" class="watchlist-section">
+            <div class="section-title">⭐ 关注列表</div>
+            <div id="watchlistGrid" class="stock-grid"></div>
         </div>
     </div>
     
@@ -365,8 +415,139 @@ HTML_TEMPLATE = '''
             }
         }
         
+        // 搜索股票
+        async function searchStock() {
+            const input = document.getElementById('searchInput');
+            const query = input.value.trim();
+            
+            if (!query) {
+                alert('请输入股票代码');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('searchResult');
+            const watchlistDiv = document.getElementById('watchlistSection');
+            resultDiv.innerHTML = '<div class="loading">正在查询...</div>';
+            watchlistDiv.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/search?q=' + encodeURIComponent(query));
+                const data = await response.json();
+                
+                if (data.error) {
+                    resultDiv.innerHTML = '<div class="loading">⚠️ ' + data.error + '</div>';
+                    return;
+                }
+                
+                if (data.stocks && data.stocks.length > 0) {
+                    const stocks = data.stocks;
+                    resultDiv.innerHTML = stocks.map(stock => renderStockCard(stock)).join('');
+                } else {
+                    resultDiv.innerHTML = '<div class="loading">未找到相关股票，请检查代码是否正确</div>';
+                }
+                
+            } catch (e) {
+                resultDiv.innerHTML = '<div class="loading">⚠️ 查询失败: ' + e.message + '</div>';
+            }
+        }
+        
+        // 回车搜索
+        function handleSearch(event) {
+            if (event.key === 'Enter') {
+                searchStock();
+            }
+        }
+        
+        // 显示关注列表
+        async function showWatchlist() {
+            const resultDiv = document.getElementById('searchResult');
+            const watchlistDiv = document.getElementById('watchlistSection');
+            const grid = document.getElementById('watchlistGrid');
+            
+            resultDiv.innerHTML = '';
+            watchlistDiv.style.display = 'block';
+            grid.innerHTML = '<div class="loading">正在获取数据...</div>';
+            
+            try {
+                const response = await fetch('/api/stocks');
+                const data = await response.json();
+                
+                if (data.error) {
+                    grid.innerHTML = '<div class="loading">⚠️ ' + data.error + '</div>';
+                    return;
+                }
+                
+                const stocks = data.stocks || [];
+                
+                // 更新统计
+                document.getElementById('totalStocks').textContent = stocks.length;
+                const avgScore = stocks.length ? Math.round(stocks.reduce((a,b) => a + b.score, 0) / stocks.length) : 0;
+                document.getElementById('avgScore').textContent = avgScore;
+                
+                // 排序
+                stocks.sort((a, b) => b.score - a.score);
+                
+                grid.innerHTML = stocks.map(stock => renderStockCard(stock)).join('');
+                
+            } catch (e) {
+                grid.innerHTML = '<div class="loading">⚠️ 加载失败: ' + e.message + '</div>';
+            }
+        }
+        
+        // 渲染股票卡片
+        function renderStockCard(stock) {
+            const scoreClass = stock.score >= 70 ? '' : (stock.score >= 50 ? 'score-mid' : 'score-low');
+            const changeClass = stock.change >= 0 ? 'change-up' : 'change-down';
+            const changeSign = stock.change >= 0 ? '+' : '';
+            
+            return `
+            <div class="stock-card">
+                <div class="stock-header">
+                    <div>
+                        <div class="stock-name">${stock.name}</div>
+                        <div class="stock-code">${stock.code}</div>
+                        <span class="sector-tag">${stock.sector || '未知'}</span>
+                    </div>
+                    <div class="score-badge ${scoreClass}">${stock.score}</div>
+                </div>
+                
+                <div class="price-section">
+                    <span class="price">¥${stock.price.toFixed(2)}</span>
+                    <span class="change ${changeClass}">${changeSign}${stock.change.toFixed(2)} (${changeSign}${stock.change_pct.toFixed(2)}%)</span>
+                </div>
+                
+                <div class="metrics">
+                    <div class="metric">
+                        <div class="metric-label">市盈率 (PE)</div>
+                        <div class="metric-value">${stock.pe || '-'}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">市净率 (PB)</div>
+                        <div class="metric-value">${stock.pb || '-'}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">ROE</div>
+                        <div class="metric-value">${stock.roe ? stock.roe + '%' : '-'}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">净利润率</div>
+                        <div class="metric-value">${stock.net_margin ? stock.net_margin + '%' : '-'}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">营收增长</div>
+                        <div class="metric-value" style="color: ${stock.revenue_growth >= 0 ? '#4ade80' : '#ef4444'}">${stock.revenue_growth || '-'}%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">利润增长</div>
+                        <div class="metric-value" style="color: ${stock.profit_growth >= 0 ? '#4ade80' : '#ef4444'}">${stock.profit_growth || '-'}%</div>
+                    </div>
+                </div>
+            </div>
+            `;
+        }
+        
         // 页面加载时获取数据
-        loadStocks();
+        showWatchlist();
     </script>
 </body>
 </html>
@@ -396,6 +577,130 @@ def api_stocks():
         "stocks": stocks,
         "update_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "errors": errors
+    })
+
+def search_stock_code(keyword: str) -> list:
+    """根据关键词搜索股票代码"""
+    try:
+        # 尝试直接作为代码处理
+        if keyword.isdigit() and len(keyword) == 6:
+            # 验证代码是否有效
+            secid = f"1.{keyword}" if keyword.startswith("6") else f"0.{keyword}"
+            url = f"https://push2.eastmoney.com/api/qt/stock/get?secid={secid}&fields=f57"
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=5) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                if data.get("data") and data["data"].get("f57"):
+                    return [{"code": keyword, "name": data["data"]["f57"]}]
+        
+        # 搜索股票名称
+        url = f"https://searchapi.eastmoney.com/api/suggest/get?input={keyword}&type=14&count=10"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            
+        results = []
+        if data.get("QuotationCode"):
+            for item in data["QuotationCode"][:10]:
+                results.append({
+                    "code": item.get("Code", ""),
+                    "name": item.get("Name", "")
+                })
+        return results
+        
+    except Exception as e:
+        return []
+
+@app.route('/api/search')
+def api_search():
+    """API接口：搜索股票"""
+    query = request.args.get('q', '').strip()
+    
+    if not query:
+        return jsonify({"error": "请输入搜索关键词", "stocks": []})
+    
+    # 搜索股票代码
+    search_results = search_stock_code(query)
+    
+    if not search_results:
+        return jsonify({"error": "未找到相关股票", "stocks": []})
+    
+    # 获取搜索结果中每个股票的详细数据
+    stocks = []
+    for item in search_results:
+        code = item["code"]
+        name = item["name"]
+        
+        # 确定市场
+        if code.startswith("6"):
+            secid = f"1.{code}"
+            market = "沪市"
+        elif code.startswith("0") or code.startswith("3"):
+            secid = f"0.{code}"
+            market = "深市"
+        else:
+            secid = f"0.{code}"
+            market = "深市"
+        
+        try:
+            url = f"https://push2.eastmoney.com/api/qt/stock/get?secid={secid}&fields=f43,f44,f45,f57,f58,f84,f85,f116,f117,f127,f128,f162,f163,f164,f167,f168,f169,f170,f173,f177,f178,f187,f188,f189,f190,f191,f192"
+            
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=10) as response:
+                data = json.loads(response.read().decode('utf-8'))
+            
+            if data.get("data"):
+                d = data["data"]
+                
+                # 价格
+                price = d.get("f43", 0) / 1000 if d.get("f43") else 0
+                change = d.get("f44", 0) / 100 if d.get("f44") else 0
+                change_pct = d.get("f45", 0) / 100 if d.get("f45") else 0
+                
+                # 估值
+                pe = d.get("f162", 0)
+                pb = d.get("f167", 0)
+                
+                # 盈利
+                roe = d.get("f173", 0) if d.get("f173") else 0
+                net_margin = d.get("f170", 0) if d.get("f170") else 0
+                
+                # 成长
+                revenue_growth = d.get("f184", 0) if d.get("f184") else 0
+                profit_growth = d.get("f190", 0) if d.get("f190") else 0
+                
+                # 计算评分
+                score = calculate_score(roe, net_margin, pe, pb, profit_growth)
+                
+                stocks.append({
+                    "code": code,
+                    "name": name,
+                    "sector": market,
+                    "price": price,
+                    "change": change,
+                    "change_pct": change_pct,
+                    "pe": pe,
+                    "pb": pb,
+                    "roe": roe,
+                    "net_margin": net_margin,
+                    "revenue_growth": revenue_growth,
+                    "profit_growth": profit_growth,
+                    "score": score,
+                    "status": "ok"
+                })
+        except Exception as e:
+            stocks.append({
+                "code": code,
+                "name": name,
+                "sector": market,
+                "status": "error",
+                "message": str(e)
+            })
+    
+    return jsonify({
+        "stocks": stocks,
+        "query": query,
+        "update_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     })
 
 if __name__ == '__main__':
